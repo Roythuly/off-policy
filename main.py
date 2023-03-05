@@ -97,6 +97,7 @@ def train_loop(config, msg = "default"):
         # test agent
         if i_episode % 10 == 0 and config.eval is True:
             avg_reward = 0.
+            avg_success = 0.
             for _  in range(config.eval_episodes):
                 state = env.reset()
                 episode_reward = 0
@@ -104,17 +105,20 @@ def train_loop(config, msg = "default"):
                 while not done:
                     action = agent.select_action(state, evaluate=True)
 
-                    next_state, reward, done, _ = env.step(action)
+                    next_state, reward, done, info = env.step(action)
                     episode_reward += reward
 
                     state = next_state
                 avg_reward += episode_reward
+                avg_success += float(info['is_success'])
             avg_reward /= config.eval_episodes
+            avg_success /= config.eval_episodes
             if avg_reward >= best_reward and config.save is True:
                 best_reward = avg_reward
                 agent.save_checkpoint(checkpoint_path, 'best')
 
             writer.add_scalar('test/avg_reward', avg_reward, total_numsteps)
+            writer.add_scalar('test/avg_success', avg_success, total_numsteps)
 
             print("----------------------------------------")
             print("Env: {}, Test Episodes: {}, Avg. Reward: {}".format(config.env_name, config.eval_episodes, round(avg_reward, 2)))
