@@ -110,9 +110,9 @@ def train_loop(config, msg = "default"):
                     state = next_state
                 avg_reward += episode_reward
             avg_reward /= config.eval_episodes
-            if avg_reward >= best_reward:
+            if avg_reward >= best_reward and config.save is True:
                 best_reward = avg_reward
-                agent.save_checkpoint(checkpoint_path, i_episode)
+                agent.save_checkpoint(checkpoint_path, 'best')
 
             writer.add_scalar('test/avg_reward', avg_reward, total_numsteps)
 
@@ -126,11 +126,11 @@ def train_loop(config, msg = "default"):
 if __name__ == "__main__":
     arg = ARGConfig()
     arg.add_arg("env_name", "HalfCheetah-v2", "Environment name")
-    arg.add_arg("device", "cuda:0", "Computing device")
+    arg.add_arg("device", 0, "Computing device")
     arg.add_arg("policy", "Gaussian", "Policy Type: Gaussian | Deterministic (default: Gaussian)")
     arg.add_arg("tag", "default", "Experiment tag")
     arg.add_arg("start_steps", 10000, "Number of start steps")
-    arg.add_arg("automatic_entropy_tuning", True, "Automaically adjust α (default: False)")
+    arg.add_arg("automatic_entropy_tuning", False, "Automaically adjust α (default: False)")
     arg.add_arg("seed", 123456, "experiment seed")
     arg.parser()
 

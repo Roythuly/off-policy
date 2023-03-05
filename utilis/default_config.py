@@ -6,6 +6,7 @@ default_config = Config({
     "start_steps": 5e3,
     "cuda": True,
     "num_steps": 1000001,
+    "save": True,
     
     "env_name": "HalfCheetah-v2", 
     "eval": True,
