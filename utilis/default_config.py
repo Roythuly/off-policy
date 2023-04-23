@@ -14,6 +14,7 @@ default_config = Config({
     "eval_times": 10,
     "replay_size": 1000000,
 
+    "algo": "SAC",
     "policy": "Gaussian",   # 'Policy Type: Gaussian | Deterministic (default: Gaussian)'
     "gamma": 0.99, 
     "tau": 0.005,

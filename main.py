@@ -4,7 +4,7 @@ import gym
 import numpy as np
 from utilis.config import ARGConfig
 from utilis.default_config import default_config
-from model.sac import SAC
+from model.algo import SAC, TD3
 from utilis.Replaybuffer import ReplayMemory
 import datetime
 import itertools
@@ -23,7 +23,10 @@ def train_loop(config, msg = "default"):
     np.random.seed(config.seed)
 
     # Agent
-    agent = SAC(env.observation_space.shape[0], env.action_space, config)
+    if config.algo == "SAC":
+        agent = SAC(env.observation_space.shape[0], env.action_space, config)
+    elif config.algo == "TD3":
+        agent = TD3(env.observation_space.shape[0], env.action_space, config)
 
     result_path = './results/{}/{}/{}_{}_{}_{}'.format(config.env_name, msg, 
                                                       datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), 
@@ -64,16 +67,25 @@ def train_loop(config, msg = "default"):
 
             if len(memory) > config.batch_size:
                 # Number of updates per step in environment
-                for i in range(config.updates_per_step):
-                    # Update parameters of all the networks
-                    critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, config.batch_size, updates)
+                if config.algo == "SAC":
+                    for i in range(config.updates_per_step):
+                        # Update parameters of all the networks
+                        critic_1_loss, critic_2_loss, policy_loss, ent_loss, alpha = agent.update_parameters(memory, config.batch_size, updates)
 
-                    writer.add_scalar('loss/critic_1', critic_1_loss, updates)
-                    writer.add_scalar('loss/critic_2', critic_2_loss, updates)
-                    writer.add_scalar('loss/policy', policy_loss, updates)
-                    writer.add_scalar('loss/entropy_loss', ent_loss, updates)
-                    writer.add_scalar('entropy_temprature/alpha', alpha, updates)
-                    updates += 1
+                        writer.add_scalar('loss/critic_1', critic_1_loss, updates)
+                        writer.add_scalar('loss/critic_2', critic_2_loss, updates)
+                        writer.add_scalar('loss/policy', policy_loss, updates)
+                        writer.add_scalar('loss/entropy_loss', ent_loss, updates)
+                        writer.add_scalar('entropy_temprature/alpha', alpha, updates)
+                        updates += 1
+                elif config.algo == "TD3":
+                    for i in range(config.updates_per_step):
+                        # Update parameters of all the networks
+                        critic_loss, policy_loss = agent.update_parameters(memory, config.batch_size, updates)
+
+                        writer.add_scalar('loss/critic', critic_loss, updates)
+                        writer.add_scalar('loss/policy', policy_loss, updates)
+                        updates += 1
 
             next_state, reward, done, _ = env.step(action) # Step
             episode_steps += 1
@@ -131,6 +143,7 @@ if __name__ == "__main__":
     arg = ARGConfig()
     arg.add_arg("env_name", "HalfCheetah-v2", "Environment name")
     arg.add_arg("device", 0, "Computing device")
+    arg.add_arg("algo", "SAC", "choose SAC or TD3")
     arg.add_arg("policy", "Gaussian", "Policy Type: Gaussian | Deterministic (default: Gaussian)")
     arg.add_arg("tag", "default", "Experiment tag")
     arg.add_arg("start_steps", 10000, "Number of start steps")

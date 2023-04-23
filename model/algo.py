@@ -5,6 +5,121 @@ from torch.optim import Adam
 from .utils import soft_update, hard_update
 from .model import GaussianPolicy, QNetwork, DeterministicPolicy
 
+class TD3(object):
+    def __init__(self, num_inputs, action_space, args):
+        self.device = torch.device("cuda:{}".format(str(args.device)) if args.cuda else "cpu")
+        self.policy = DeterministicPolicy(num_inputs, action_space.shape[0], args.hidden_size, action_space).to(self.device)
+        self.policy_target = copy.deepcopy(self.policy)
+        self.policy_optim = Adam(self.policy.parameters(), lr=args.lr)
+        
+        self.critic = QNetwork(num_inputs, action_space.shape[0], args.hidden_size).to(device=self.device)
+        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optim = Adam(self.critic.parameters(), lr=args.lr)
+        
+        self.tau = args.tau
+        self.policy_freq = 2
+        self.noise_clip = 0.5
+        self.policy_noise = 0.2
+        self.discount = args.gamma
+        self.max_action = float(action_space.high[0])
+        
+    def select_action(self, state, evaluate=False):
+        state = torch.FloatTensor(state).to(self.device).unsqueeze(0)
+        action = self.policy(state).detach().cpu().numpy()[0]
+        return action
+    
+    def update_parameters(self, memory, batch_size, updates):
+        state_batch, action_batch, reward_batch, next_state_batch, mask_batch = memory.sample(batch_size=batch_size)
+
+        state_batch = torch.FloatTensor(state_batch).to(self.device)
+        next_state_batch = torch.FloatTensor(next_state_batch).to(self.device)
+        action_batch = torch.FloatTensor(action_batch).to(self.device)
+        reward_batch = torch.FloatTensor(reward_batch).to(self.device).unsqueeze(1)
+        mask_batch = torch.FloatTensor(mask_batch).to(self.device).unsqueeze(1)
+
+        with torch.no_grad():
+			# Select action according to policy and add clipped noise
+            noise = (
+				torch.randn_like(action_batch) * self.policy_noise
+			).clamp(-self.noise_clip, self.noise_clip)
+            
+            next_action_batch = (
+				self.policy_target(next_state_batch) + noise
+			).clamp(-self.max_action, self.max_action)
+
+			# Compute the target Q value
+            target_Q1, target_Q2 = self.critic_target(next_state_batch, next_action_batch)
+            target_Q = torch.min(target_Q1, target_Q2)
+            target_Q = reward_batch + mask_batch * self.discount * target_Q
+
+		# Get current Q estimates
+        current_Q1, current_Q2 = self.critic(state_batch, action_batch)
+
+		# Compute critic loss
+        critic_loss = F.mse_loss(current_Q1, target_Q) + F.mse_loss(current_Q2, target_Q)
+
+		# Optimize the critic
+        self.critic_optim.zero_grad()
+        critic_loss.backward()
+        self.critic_optim.step()
+
+		# Delayed policy updates
+        if updates % self.policy_freq == 0:
+
+			# Compute actor losse
+            policy_loss_1, policy_loss_2 = self.critic(state_batch, self.policy(state_batch))
+            policy_loss = -policy_loss_1.mean()
+			# Optimize the actor 
+            self.policy_optim.zero_grad()
+            policy_loss.backward()
+            self.policy_optim.step()
+
+			# Update the frozen target models
+            for param, target_param in zip(self.critic.parameters(), self.critic_target.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+
+            for param, target_param in zip(self.policy.parameters(), self.policy_target.parameters()):
+                target_param.data.copy_(self.tau * param.data + (1 - self.tau) * target_param.data)
+            # store the last policy loss for output
+            self.policy_loss_temp = policy_loss
+        else:
+            policy_loss = self.policy_loss_temp
+            
+        return critic_loss.item(), policy_loss.item()
+    
+    def save_checkpoint(self, path, i_episode):
+        ckpt_path = path + '/' + '{}.torch'.format(i_episode)
+        print('Saving models to {}'.format(ckpt_path))
+        torch.save({'policy_state_dict': self.policy.state_dict(),
+                    'policy_target_state_dict': self.policy_target.state_dict(),
+                    'critic_state_dict': self.critic.state_dict(),
+                    'critic_target_state_dict': self.critic_target.state_dict(),
+                    'critic_optimizer_state_dict': self.critic_optim.state_dict(),
+                    'policy_optimizer_state_dict': self.policy_optim.state_dict()}, ckpt_path)
+    
+    def load_checkpoint(self, path, i_episode, evaluate=False):
+        ckpt_path = path + '/' + '{}.torch'.format(i_episode)
+        print('Loading models from {}'.format(ckpt_path))
+        if ckpt_path is not None:
+            checkpoint = torch.load(ckpt_path)
+            self.policy.load_state_dict(checkpoint['policy_state_dict'])
+            self.policy_target.load_state_dict(checkpoint['policy_target_state_dict'])
+            self.critic.load_state_dict(checkpoint['critic_state_dict'])
+            self.critic_target.load_state_dict(checkpoint['critic_target_state_dict'])
+            self.critic_optim.load_state_dict(checkpoint['critic_optimizer_state_dict'])
+            self.policy_optim.load_state_dict(checkpoint['policy_optimizer_state_dict'])
+
+            if evaluate:
+                self.policy.eval()
+                self.policy_target.eval()
+                self.critic.eval()
+                self.critic_target.eval()
+            else:
+                self.policy.train()
+                self.policy_target.train()
+                self.critic.train()
+                self.critic_target.train()
+
 
 class SAC(object):
     def __init__(self, num_inputs, action_space, args):
