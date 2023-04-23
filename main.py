@@ -28,7 +28,7 @@ def train_loop(config, msg = "default"):
     elif config.algo == "TD3":
         agent = TD3(env.observation_space.shape[0], env.action_space, config)
 
-    result_path = './results/{}/{}/{}_{}_{}_{}'.format(config.env_name, msg, 
+    result_path = './results/{}/{}/{}/{}_{}_{}_{}'.format(config.env_name, config.algo, msg, 
                                                       datetime.datetime.now().strftime("%Y-%m-%d_%H-%M-%S"), 
                                                       config.policy, config.seed, 
                                                       "autotune" if config.automatic_entropy_tuning else "")
@@ -154,5 +154,5 @@ if __name__ == "__main__":
     config = default_config
     config.update(arg)
 
-    print(f">>>> Training SAC on {config.env_name} environment, on {config.device}")
+    print(f">>>> Training {config.algo} on {config.env_name} environment, on {config.device}")
     train_loop(config, msg=config.tag)
