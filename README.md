@@ -1,1 +1,1 @@
-python main.py --env_name Ant-v3
+python main.py --algo SAC --env_name Ant-v3
