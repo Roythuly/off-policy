@@ -1,9 +1,11 @@
+import os
+import sys
 import torch
 import gym
 import numpy as np
-from utilis.config import ARGConfig
+from utilis.config import ARGConfig, Config
 from utilis.default_config import default_config
-from model.sac import SAC
+from model.algo import SAC
 from utilis.Replaybuffer import ReplayMemory
 import datetime
 import itertools

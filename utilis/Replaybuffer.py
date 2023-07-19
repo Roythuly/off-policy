@@ -25,8 +25,8 @@ class ReplayMemory:
     def __len__(self):
         return len(self.buffer)
 
-    def save_buffer(self, path, i_episode):
-        print('Saving buffer to {}'.format(path))
+    def save_buffer(self, save_path, i_episode):
+        print('Saving buffer to {}'.format(save_path))
 
         with open(save_path, 'wb') as f:
             pickle.dump(self.buffer, f)
